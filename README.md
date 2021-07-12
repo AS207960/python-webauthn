@@ -23,7 +23,7 @@ user = webauthn.types.User(
 # Who is requesting the credential
 rp = webauthn.types.RelyingParty(
     id="as207960-webauthn.eu.ngrok.io",
-    name="AS307960",
+    name="AS207960",
     icon="https://as207960.net/assets/img/logo.svg"
 )
 
