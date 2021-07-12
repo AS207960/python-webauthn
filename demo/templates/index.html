@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Python WebAuthN</title>
+    <link rel="icon" type="image/svg+xml" href="https://as207960.net/favicon.svg">
+    <link rel="stylesheet" href="https://as207960.net/assets/css/bootstrap.css">
+</head>
+<body>
+<div class="container my-5">
+    <div class="bg-light rounded p-4">
+        <div class="alert alert-danger" id="no-webauthn-error" style="display: none;">
+            Your browser does not support security keys.
+        </div>
+        <div class="alert alert-danger" id="error" style="display: none;"></div>
+        <div class="alert alert-secondary" id="loading" style="display: none;">
+            Loading...
+        </div>
+        <div id="has-webauthn" style="display: none;">
+            <button type="button" class="btn btn-primary" id="register-button">Register</button>
+            <button type="button" class="btn btn-primary" id="login-button">Login</button>
+        </div>
+    </div>
+</div>
+<script>
+    var noWebAuthnError = document.getElementById("no-webauthn-error");
+    var hasWebAuthn = document.getElementById("has-webauthn");
+    var registerButton = document.getElementById("register-button");
+    var loginButton = document.getElementById("login-button");
+    var errorElm = document.getElementById("error");
+    var loadingElm = document.getElementById("loading");
+
+    function fetch_json(url, options) {
+        return window.fetch(url, options)
+            .then(function (r) {
+                if (!r.ok) {
+                    errorElm.innerText = "Uh oh! Something went wrong.";
+                    throw new Error(`HTTP error ${r.status}`);
+                }
+                return r.json();
+            })
+            .then(function (data) {
+                if (data.result === "error") {
+                    errorElm.innerText = data.message;
+                    throw new Error(`API error: ${data.message}`);
+                }
+                errorElm.style.display = 'none';
+                return data.data;
+            })
+            .catch(function (error) {
+                console.error(error);
+                errorElm.style.display = 'block';
+                loadingElm.style.display = 'none';
+            });
+    }
+
+    function b64decode(input) {
+        return Uint8Array.from(window.atob(input), c => c.charCodeAt(0));
+    }
+    function b64encode(input) {
+        return window.btoa(String.fromCharCode.apply(null, new Uint8Array(input)));
+    }
+
+    if (!window.PublicKeyCredential || !window.fetch) {
+        noWebAuthnError.style.display = 'block';
+    } else {
+        hasWebAuthn.style.display = 'block';
+
+        registerButton.addEventListener('click', function () {
+            loadingElm.style.display = 'block';
+            errorElm.style.display = 'none';
+            fetch_json("/register")
+                .then(function (data) {
+                    data.user.id = b64decode(data.user.id);
+                    data.challenge = b64decode(data.challenge);
+                    data.excludeCredentials = data.excludeCredentials.map(function (cred) {
+                        cred.id = b64decode(cred.id);
+                        return cred;
+                    })
+                    return navigator.credentials.create({
+                        publicKey: data
+                    });
+                })
+                .then(function (response) {
+                    let data = {
+                        id: b64encode(response.rawId),
+                        response: {
+                            data: b64encode(response.response.clientDataJSON),
+                            attestation: b64encode(response.response.attestationObject),
+                        }
+                    }
+                    return fetch_json("/complete_registration", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(data)
+                    });
+                })
+                .then(function (data) {
+                    loadingElm.style.display = 'none';
+                })
+                .catch(function () {
+                    errorElm.style.display = 'block';
+                    loadingElm.style.display = 'none';
+                });
+        });
+
+        loginButton.addEventListener('click', function () {
+            loadingElm.style.display = 'block';
+            errorElm.style.display = 'none';
+            fetch_json("/login")
+                .then(function (data) {
+                    data.challenge = b64decode(data.challenge);
+                    data.allowCredentials = data.allowCredentials.map(function (cred) {
+                        cred.id = b64decode(cred.id);
+                        return cred;
+                    })
+                    console.log(data);
+                    return navigator.credentials.get({
+                        publicKey: data
+                    });
+                })
+                .then(function (response) {
+                    let data = {
+                        response: {
+                            data: b64encode(response.response.clientDataJSON),
+                            authenticator: b64encode(response.response.authenticatorData),
+                            signature: b64encode(response.response.signature),
+                            user: b64encode(response.response.userHandle),
+                        }
+                    }
+                    return fetch_json("/complete_login", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(data)
+                    });
+                })
+                .then(function (data) {
+                    loadingElm.style.display = 'none';
+                })
+                .catch(function () {
+                    errorElm.style.display = 'block';
+                    loadingElm.style.display = 'none';
+                });
+        });
+    }
+</script>
+</body>
+</html>
