@@ -231,6 +231,7 @@ def get_metadata():
     if mds_r.status_code != 200:
         raise errors.WebAuthnError("Failed to fetch metadata")
 
+    mds_r.encoding = "ascii"
     try:
         mds_data = iter(mds_r.text.split("."))
         header_str = next(mds_data)
