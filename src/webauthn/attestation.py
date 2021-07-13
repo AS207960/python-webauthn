@@ -104,7 +104,7 @@ def verify_attestation(
     if not fmt:
         raise WebAuthnError("Invalid data")
     attestation_statement = attestation_statement.get("attStmt", None)
-    if not attestation_statement:
+    if attestation_statement is None:
         raise WebAuthnError("Invalid data")
 
     if not authenticator_data.attested_data:
